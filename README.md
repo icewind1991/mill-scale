@@ -48,14 +48,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v27
       - id: set-matrix
-        run: echo "matrix={\"check\":$(nix eval --json '.#checks.x86_64-linux' --apply 'builtins.attrNames'}" | tee $GITHUB_OUTPUT
+        run: echo "matrix={\"check\":$(nix eval --json '.#checks.x86_64-linux' --apply 'builtins.attrNames')}" | tee $GITHUB_OUTPUT
 
   checks:
     runs-on: ubuntu-latest
     needs: [matrix]
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.miri-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.matrix.outputs.matrix)}}
     name: ${{ matrix.check }}
     steps:
       - uses: actions/checkout@v4
