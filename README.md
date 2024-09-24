@@ -1,6 +1,6 @@
 # Mill Scale
 
-Flakes of rust
+An opinionated rust module for [flakelight](https://github.com/nix-community/flakelight).
 
 ## Features
 
@@ -10,6 +10,25 @@ Included checks:
 - Test and clippy with default features
 - Test and clippy with all features (if features are defined)
 - Test and clippy with no default features (if default features are defined)
+
+## Usage
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "nixpkgs/nixos-24.05";
+    flakelight = {
+      url = "github:nix-community/flakelight";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    mill-scale = {
+      url = "github:icewind1991/mill-scale";
+      inputs.flakelight.follows = "flakelight";
+    };
+  };
+  outputs = { mill-scale, ... }: mill-scale ./. {};
+}
+```
 
 ## Usage with GitHub Actions
 
@@ -32,6 +51,10 @@ jobs:
 ```
 
 ### Split over multiple runners
+
+This automatically creates one job per check, allowing them to run in parallel.
+
+This might be slower than running them all in the same runner depending on the time each check takes and the size of the intermediates that has to be downloaded from the cache.
 
 ```yaml
 name: "CI"
@@ -63,3 +86,7 @@ jobs:
         # insert cache setup here
       - run: nix build .#checks.x86_64-linux.${{ matrix.check }}
 ```
+
+## Credits
+
+This flake is based on [flakelight-rust](https://github.com/accelbread/flakelight-rust), credit for most ideas got to accelbread.
