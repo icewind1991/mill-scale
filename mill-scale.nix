@@ -5,7 +5,7 @@
 { lib, src, config, flakelight, inputs, ... }:
 let
   inherit (builtins) elem readFile pathExists isAttrs attrNames;
-  inherit (lib) mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString;
+  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix;
   inherit (lib.fileset) fileFilter toSource;
   inherit (flakelight.types) fileset;
 
@@ -32,6 +32,10 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         (file: file.hasExt "rs" || elem file.name ([ "Cargo.toml" "Cargo.lock" ] ++ config.extraFiles))
         src;
     };
+    crossTargets = mkOption {
+      type = with types; listOf str;
+      default = [ ];
+    };
   };
 
   config = mkMerge [
@@ -41,6 +45,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         (final: { inputs, rust-bin, writeShellApplication, stdenvNoCC, ... } @ prev: rec {
           crateName = (craneLib.crateNameFromCargoToml { inherit src; }).pname;
           craneLib = (inputs.crane.mkLib final).overrideToolchain (p: p.latestRustToolchain);
+          craneLibForTargets = targets: (inputs.crane.mkLib final).overrideToolchain (p: p.latestRustToolchain.override { inherit targets; });
           craneLibMsrv = (inputs.crane.mkLib final).overrideToolchain (p: p.msrvRustToolchain);
           cargoArtifacts = craneLib.buildDepsOnly
             {
@@ -107,6 +112,31 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           strictDeps = true;
           meta = defaultMeta;
         };
+      } // (genAttrs config.crossTargets (
+        target: { craneLibForTargets, cargoArtifacts, defaultMeta, callPackage, crateName }:
+          let
+            targetCraneLib = craneLibForTargets [ target ];
+            crossArgs = callPackage ./crossArgs.nix {} target;
+          in
+          targetCraneLib.buildPackage
+            ({
+              src = toSource { root = src; inherit (config) fileset; };
+              doCheck = false;
+              strictDeps = true;
+              meta = defaultMeta // {
+                targetPlatform = target;
+                binarySuffix = crossArgs.BINARY_SUFFIX or "";
+              };
+              pname = "${crateName}-${target}";
+              cargoExtraArgs = "--target ${target}";
+            } // crossArgs)
+      ));
+
+      outputs = {
+        crossMatrix = map (target: {
+          inherit target;
+          binary-suffix = optionalString (hasInfix "windows" target) ".exe";
+        }) config.crossTargets;
       };
 
       checks =
