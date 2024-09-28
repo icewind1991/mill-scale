@@ -7,7 +7,7 @@ let
   inherit (builtins) elem readFile pathExists isAttrs attrNames;
   inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix;
   inherit (lib.fileset) fileFilter toSource;
-  inherit (flakelight.types) fileset;
+  inherit (flakelight.types) fileset function;
 
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
   tomlPackage = cargoToml.package or cargoToml.workspace.package;
@@ -16,7 +16,6 @@ let
   hasFeatures = cargoToml ? features && isAttrs cargoToml.features;
   hasDefaultFeatures = cargoToml ? features && cargoToml.features ? default;
   msrv = assert assertMsg hasMsrv ''"rust-version" not set in Cargo.toml''; tomlPackage.rust-version;
-  tools = pkgs: with pkgs; [ cargo-edit bacon ];
   maybeWorkspace = optionalString hasWorkspace "--workspace";
 in
 warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
@@ -36,6 +35,21 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       type = with types; listOf str;
       default = [ ];
     };
+    buildInputs = mkOption {
+      type = function;
+      default = pkgs: [ ];
+      description = "build inputs for the package";
+    };
+    nativeBuildInputs = mkOption {
+      type = function;
+      default = pkgs: [ ];
+      description = "native build inputs for the package";
+    };
+    tools = mkOption {
+      type = function;
+      default = pkgs: with pkgs; [ cargo-edit bacon ];
+      description = "extra packages to make available in the dev shells";
+    };
   };
 
   config = mkMerge [
@@ -51,6 +65,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             {
               inherit src;
               strictDeps = true;
+              buildInputs = config.buildInputs final;
+              nativeBuildInputs = config.nativeBuildInputs final;
             };
           cargoArtifactsAllFeatures = craneLib.buildDepsOnly
             {
@@ -58,6 +74,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
               strictDeps = true;
               cargoExtraArgs = "--locked --all-features";
               pname = "${crateName}-all-features";
+              buildInputs = config.buildInputs final;
+              nativeBuildInputs = config.nativeBuildInputs final;
             };
           cargoArtifactsNoDefault = craneLib.buildDepsOnly
             {
@@ -65,6 +83,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
               strictDeps = true;
               cargoExtraArgs = "--locked --no-default-features";
               pname = "${crateName}-no-default-features";
+              buildInputs = config.buildInputs final;
+              nativeBuildInputs = config.nativeBuildInputs final;
             };
           cargoArtifactsMsrv = craneLibMsrv.buildDepsOnly
             {
@@ -72,6 +92,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
               strictDeps = true;
               cargoExtraArgs = "--locked --all-features";
               pname = "${crateName}-msrv";
+              buildInputs = config.buildInputs final;
+              nativeBuildInputs = config.nativeBuildInputs final;
             };
           latestRustToolchain = rust-bin.stable.latest.default;
           msrvRustToolchain = rust-bin.stable.${msrv}.default;
@@ -105,18 +127,20 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       pname = tomlPackage.name;
 
       packages = {
-        default = { craneLib, cargoArtifacts, defaultMeta }: craneLib.buildPackage {
+        default = { craneLib, cargoArtifacts, defaultMeta, pkgs }: craneLib.buildPackage {
           src = toSource { root = src; inherit (config) fileset; };
           inherit cargoArtifacts;
           doCheck = false;
           strictDeps = true;
           meta = defaultMeta;
+          buildInputs = config.buildInputs pkgs;
+          nativeBuildInputs = config.nativeBuildInputs pkgs;
         };
       } // (genAttrs config.crossTargets (
-        target: { craneLibForTargets, cargoArtifacts, defaultMeta, callPackage, crateName }:
+        target: { craneLibForTargets, cargoArtifacts, defaultMeta, callPackage, crateName, pkgs }:
           let
             targetCraneLib = craneLibForTargets [ target ];
-            crossArgs = callPackage ./crossArgs.nix {} target;
+            crossArgs = callPackage ./crossArgs.nix { } target;
           in
           targetCraneLib.buildPackage
             ({
@@ -129,14 +153,18 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
               };
               pname = "${crateName}-${target}";
               cargoExtraArgs = "--target ${target}";
+              buildInputs = config.buildInputs pkgs;
+              nativeBuildInputs = config.nativeBuildInputs pkgs;
             } // crossArgs)
       ));
 
       outputs = {
-        crossMatrix = map (target: {
-          inherit target;
-          binary-suffix = optionalString (hasInfix "windows" target) ".exe";
-        }) config.crossTargets;
+        lib.crossMatrix = map
+          (target: {
+            inherit target;
+            binary-suffix = optionalString (hasInfix "windows" target) ".exe";
+          })
+          config.crossTargets;
       };
 
       checks =
@@ -147,16 +175,21 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         , cargoArtifactsAllFeatures
         , cargoArtifactsNoDefault
         , crateName
+        , pkgs
         , ...
         }: {
           test = craneLib.cargoTest {
             inherit src cargoArtifacts;
             cargoExtraArgs = "--locked --all-targets --workspace";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
           clippy = craneLib.cargoClippy {
             inherit src cargoArtifacts;
             strictDeps = true;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} -- --deny warnings";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
         } // (optionalAttrs hasMsrv {
           msrv = craneLibMsrv.buildPackage {
@@ -168,6 +201,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             cargoBuildCommand = "cargo check";
             cargoExtraArgs = "--release --locked --all-targets --all-features ${maybeWorkspace}";
             installPhaseCommand = "mkdir $out";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
         }) // (optionalAttrs hasFeatures {
           test-all-features = craneLib.cargoTest {
@@ -176,6 +211,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             strictDeps = true;
             cargoArtifacts = cargoArtifactsAllFeatures;
             cargoExtraArgs = "--locked --all-targets --all-features ${maybeWorkspace}";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
           clippy-all-features = craneLib.cargoClippy {
             inherit src;
@@ -183,6 +220,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             strictDeps = true;
             cargoArtifacts = cargoArtifactsAllFeatures;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --all-features -- --deny warnings";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
         }) // (optionalAttrs hasDefaultFeatures {
           test-no-default-features = craneLib.cargoTest {
@@ -191,6 +230,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             strictDeps = true;
             cargoArtifacts = cargoArtifactsNoDefault;
             cargoExtraArgs = "--locked --all-targets --no-default-features ${maybeWorkspace}";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
           clippy-no-default-features = craneLib.cargoClippy {
             inherit src;
@@ -198,6 +239,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             strictDeps = true;
             cargoArtifacts = cargoArtifactsNoDefault;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --no-default-features -- --deny warnings";
+            buildInputs = config.buildInputs pkgs;
+            nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
         });
 
@@ -210,20 +253,29 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
     rec {
       devShells = rec {
         default = {
-          packages = pkgs: with pkgs; [ latestRustToolchain ] ++ tools pkgs;
+          packages = pkgs: with pkgs; [ latestRustToolchain ]
+            ++ (config.tools pkgs)
+            ++ (config.buildInputs pkgs)
+            ++ (config.nativeBuildInputs pkgs);
 
           env = { rustPlatform, ... }: {
             RUST_SRC_PATH = toString rustPlatform.rustLibSrc;
           };
         };
         miri = {
-          packages = pkgs: with pkgs; [ miriRustToolchain cargo-edit bacon ] ++ tools pkgs;
+          packages = pkgs: with pkgs; [ miriRustToolchain ]
+            ++ (config.tools pkgs)
+            ++ (config.buildInputs pkgs)
+            ++ (config.nativeBuildInputs pkgs);
 
           inherit (default) env;
         };
       } // (optionalAttrs hasMsrv {
         msrv = {
-          packages = pkgs: with pkgs; [ msrvRustToolchain cargo-edit bacon ] ++ tools pkgs;
+          packages = pkgs: with pkgs; [ msrvRustToolchain ]
+            ++ (config.tools pkgs)
+            ++ (config.buildInputs pkgs)
+            ++ (config.nativeBuildInputs pkgs);
 
           inherit (devShells.default) env;
         };
