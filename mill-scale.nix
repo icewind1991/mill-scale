@@ -9,6 +9,7 @@ let
   inherit (lib.fileset) fileFilter toSource;
   inherit (flakelight.types) fileset function;
 
+  filteredSrc = toSource { root = src; inherit (config) fileset; };
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
   tomlPackage = cargoToml.package or cargoToml.workspace.package;
   hasMsrv = tomlPackage ? rust-version;
@@ -63,14 +64,14 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           craneLibMsrv = (inputs.crane.mkLib final).overrideToolchain (p: p.msrvRustToolchain);
           cargoArtifacts = craneLib.buildDepsOnly
             {
-              inherit src;
+              src = filteredSrc;
               strictDeps = true;
               buildInputs = config.buildInputs final;
               nativeBuildInputs = config.nativeBuildInputs final;
             };
           cargoArtifactsAllFeatures = craneLib.buildDepsOnly
             {
-              inherit src;
+              src = filteredSrc;
               strictDeps = true;
               cargoExtraArgs = "--locked --all-features";
               pname = "${crateName}-all-features";
@@ -79,7 +80,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             };
           cargoArtifactsNoDefault = craneLib.buildDepsOnly
             {
-              inherit src;
+              src = filteredSrc;
               strictDeps = true;
               cargoExtraArgs = "--locked --no-default-features";
               pname = "${crateName}-no-default-features";
@@ -88,7 +89,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             };
           cargoArtifactsMsrv = craneLibMsrv.buildDepsOnly
             {
-              inherit src;
+              src = filteredSrc;
               strictDeps = true;
               cargoExtraArgs = "--locked --all-features";
               pname = "${crateName}-msrv";
@@ -128,7 +129,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
 
       packages = {
         default = { craneLib, cargoArtifacts, defaultMeta, pkgs }: craneLib.buildPackage {
-          src = toSource { root = src; inherit (config) fileset; };
+          src = filteredSrc;
           inherit cargoArtifacts;
           doCheck = false;
           strictDeps = true;
@@ -144,7 +145,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           in
           targetCraneLib.buildPackage
             ({
-              src = toSource { root = src; inherit (config) fileset; };
+              src = filteredSrc;
               doCheck = false;
               strictDeps = true;
               meta = defaultMeta // {
@@ -179,13 +180,15 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         , ...
         }: {
           test = craneLib.cargoTest {
-            inherit src cargoArtifacts;
+            src = filteredSrc;
+            inherit cargoArtifacts;
             cargoExtraArgs = "--locked --all-targets --workspace";
             buildInputs = config.buildInputs pkgs;
             nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
           clippy = craneLib.cargoClippy {
-            inherit src cargoArtifacts;
+            src = filteredSrc;
+            inherit cargoArtifacts;
             strictDeps = true;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} -- --deny warnings";
             buildInputs = config.buildInputs pkgs;
@@ -193,7 +196,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           };
         } // (optionalAttrs hasMsrv {
           msrv = craneLibMsrv.buildPackage {
-            inherit src;
+            src = filteredSrc;
             pname = "${crateName}-msrv";
             cargoArtifacts = cargoArtifactsMsrv;
             strictDeps = true;
@@ -206,7 +209,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           };
         }) // (optionalAttrs hasFeatures {
           test-all-features = craneLib.cargoTest {
-            inherit src;
+            src = filteredSrc;
             pname = "${crateName}-all-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsAllFeatures;
@@ -215,7 +218,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             nativeBuildInputs = config.nativeBuildInputs pkgs;
           };
           clippy-all-features = craneLib.cargoClippy {
-            inherit src;
+            src = filteredSrc;
             pname = "${crateName}-all-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsAllFeatures;
@@ -225,7 +228,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           };
         }) // (optionalAttrs hasDefaultFeatures {
           test-no-default-features = craneLib.cargoTest {
-            inherit src;
+            src = filteredSrc;
             pname = "${crateName}-no-default-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsNoDefault;
