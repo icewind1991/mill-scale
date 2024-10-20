@@ -18,6 +18,7 @@ let
   hasDefaultFeatures = cargoToml ? features && cargoToml.features ? default;
   msrv = assert assertMsg hasMsrv ''"rust-version" not set in Cargo.toml''; tomlPackage.rust-version;
   maybeWorkspace = optionalString hasWorkspace "--workspace";
+  hasExamples = pathExists (src + /examples);
 
   cargoLockDeps =
     if pathExists (src + /Cargo.lock) then
@@ -266,6 +267,16 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --no-default-features -- --deny warnings";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
           };
+        }) // (optionalAttrs hasExamples {
+          examples = craneLibMsrv.buildPackage {
+             src = filteredSrc;
+             pname = "${crateName}-examples";
+             cargoArtifacts = if hasFeatures then cargoArtifactsAllFeatures else cargoArtifacts;
+             strictDeps = true;
+             doCheck = false;
+             cargoExtraArgs = "--examples ${optionalString hasFeatures "--all-features"} ${maybeWorkspace}";
+             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
+           };
         });
 
       apps = { cargo-miri, cargo-semver-checks, ... }: {
