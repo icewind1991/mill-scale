@@ -6,6 +6,8 @@ An opinionated rust module for [flakelight](https://github.com/nix-community/fla
 
 Included checks:
 
+- Build project
+- Build examples (if they exist)
 - Verify MSRV (if specified in `Cargo.toml`)
 - Test and clippy with default features
 - Test and clippy with all features (if features are defined)
