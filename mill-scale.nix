@@ -269,14 +269,14 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           };
         }) // (optionalAttrs hasExamples {
           examples = craneLibMsrv.buildPackage {
-             src = filteredSrc;
-             pname = "${crateName}-examples";
-             cargoArtifacts = if hasFeatures then cargoArtifactsAllFeatures else cargoArtifacts;
-             strictDeps = true;
-             doCheck = false;
-             cargoExtraArgs = "--examples ${optionalString hasFeatures "--all-features"} ${maybeWorkspace}";
-             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-           };
+            src = filteredSrc;
+            pname = "${crateName}-examples";
+            cargoArtifacts = if hasFeatures then cargoArtifactsAllFeatures else cargoArtifacts;
+            strictDeps = true;
+            doCheck = false;
+            cargoExtraArgs = "--examples ${optionalString hasFeatures "--all-features"} ${maybeWorkspace}";
+            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
+          };
         });
 
       apps = { cargo-miri, cargo-semver-checks, ... }: {
