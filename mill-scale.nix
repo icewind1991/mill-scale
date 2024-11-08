@@ -4,7 +4,7 @@
 
 { lib, src, config, flakelight, inputs, ... }:
 let
-  inherit (builtins) elem readFile pathExists isAttrs attrNames;
+  inherit (builtins) elem readFile pathExists isAttrs attrNames match any;
   inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals;
   inherit (lib.fileset) fileFilter toSource;
   inherit (flakelight.types) fileset function;
@@ -56,10 +56,17 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       type = with types; listOf str;
       default = [ ];
     };
+    extraFilesRegex = mkOption {
+      type = with types; listOf str;
+      default = [ ];
+    };
     fileset = mkOption {
       type = fileset;
       default = fileFilter
-        (file: file.hasExt "rs" || elem file.name ([ "Cargo.toml" "Cargo.lock" ] ++ config.extraFiles))
+        (file:
+          file.hasExt "rs" ||
+          elem file.name ([ "Cargo.toml" "Cargo.lock" ] ++ config.extraFiles) ||
+          any (re: match re file.name != null) config.extraFilesRegex)
         src;
     };
     crossTargets = mkOption {
