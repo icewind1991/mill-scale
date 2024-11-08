@@ -65,6 +65,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       default = fileFilter
         (file:
           file.hasExt "rs" ||
+          match "snapshot__.*\.snap" file.name != null ||
           elem file.name ([ "Cargo.toml" "Cargo.lock" ] ++ config.extraFiles) ||
           any (re: match re file.name != null) config.extraFilesRegex)
         src;
