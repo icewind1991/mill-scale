@@ -7,7 +7,7 @@ let
   inherit (builtins) elem readFile pathExists isAttrs attrNames match any;
   inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals;
   inherit (lib.fileset) fileFilter toSource;
-  inherit (flakelight.types) fileset function;
+  inherit (flakelight.types) fileset function optFunctionTo;
 
   filteredSrc = toSource { root = src; inherit (config) fileset; };
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
@@ -94,6 +94,10 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       default = true;
       description = "Automatically detect (some) of the build dependencies";
     };
+    packageOpts = mkOption {
+      type = optFunctionTo types.attrs;
+      default = {};
+    };
   };
 
   config = mkMerge [
@@ -167,14 +171,14 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       pname = tomlPackage.name;
 
       packages = {
-        default = { craneLib, cargoArtifacts, defaultMeta, pkgs }: craneLib.buildPackage {
+        default = { callPackage, craneLib, cargoArtifacts, defaultMeta, pkgs }: craneLib.buildPackage ({
           src = filteredSrc;
           inherit cargoArtifacts;
           doCheck = false;
           strictDeps = true;
           meta = defaultMeta;
           inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-        };
+        } // (config.packageOpts pkgs));
       } // (genAttrs config.crossTargets (
         target: { craneLibForTargets, cargoArtifacts, defaultMeta, callPackage, crateName, pkgs }:
           let
@@ -193,7 +197,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
               pname = "${crateName}-${target}";
               cargoExtraArgs = "--target ${target}";
               inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-            } // crossArgs)
+            } // crossArgs // (config.packageOpts pkgs))
       ));
 
       outputs = {
