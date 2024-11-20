@@ -98,6 +98,23 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       type = optFunctionTo types.attrs;
       default = {};
     };
+    toolchain = mkOption {
+      type = function;
+      default = pkgs: pkgs.rust-bin.stable.latest.default;
+      description = "rust toolchain to use";
+    };
+    msrvToolchain = mkOption {
+      type = function;
+      default = pkgs: pkgs.rust-bin.stable.${msrv}.default;
+      description = "rust toolchain to use";
+    };
+    miriToolchain = mkOption {
+      type = function;
+      default = pkgs: pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
+        extensions = [ "miri" "rust-src" ];
+      });
+      description = "rust toolchain to use";
+    };
   };
 
   config = mkMerge [
@@ -106,8 +123,8 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         (import inputs.rust-overlay)
         (final: { inputs, rust-bin, writeShellApplication, stdenvNoCC, ... } @ prev: rec {
           crateName = (craneLib.crateNameFromCargoToml { inherit src; }).pname;
-          craneLib = (inputs.crane.mkLib final).overrideToolchain (p: p.latestRustToolchain);
-          craneLibForTargets = targets: (inputs.crane.mkLib final).overrideToolchain (p: p.latestRustToolchain.override { inherit targets; });
+          craneLib = (inputs.crane.mkLib final).overrideToolchain (p: p.rustToolchain);
+          craneLibForTargets = targets: (inputs.crane.mkLib final).overrideToolchain (p: p.rustToolchain.override { inherit targets; });
           craneLibMsrv = (inputs.crane.mkLib final).overrideToolchain (p: p.msrvRustToolchain);
           cargoArtifacts = craneLib.buildDepsOnly
             {
@@ -139,11 +156,9 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
               pname = "${crateName}-msrv";
               inherit ((buildDeps final)) buildInputs nativeBuildInputs;
             };
-          latestRustToolchain = rust-bin.stable.latest.default;
-          msrvRustToolchain = rust-bin.stable.${msrv}.default;
-          miriRustToolchain = rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
-            extensions = [ "miri" "rust-src" ];
-          });
+          rustToolchain = config.toolchain prev;
+          msrvRustToolchain = config.msrvToolchain prev;
+          miriRustToolchain = config.miriToolchain prev;
           cargo-expand = (writeShellApplication {
             name = "cargo-expand";
             runtimeInputs = [ prev.cargo-expand ];
@@ -300,7 +315,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
     rec {
       devShells = rec {
         default = {
-          packages = pkgs: with pkgs; [ latestRustToolchain ]
+          packages = pkgs: with pkgs; [ rustToolchain ]
             ++ (config.tools pkgs)
             ++ (buildDeps pkgs).buildInputs
             ++ (buildDeps pkgs).nativeBuildInputs;
