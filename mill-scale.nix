@@ -9,7 +9,7 @@ let
   inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
 
-  filteredSrc = toSource { root = src; fileset = unions (config.extraPaths ++ [config.fileset]); };
+  filteredSrc = toSource { root = src; fileset = unions (config.extraPaths ++ [ config.fileset ]); };
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
   tomlPackage = cargoToml.package or cargoToml.workspace.package;
   hasMsrv = tomlPackage ? rust-version;
@@ -110,14 +110,14 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
     msrvToolchain = mkOption {
       type = function;
       default = pkgs: pkgs.rust-bin.stable.${msrv}.default;
-      description = "rust toolchain to use";
+      description = "rust toolchain to use for msrv check";
     };
     miriToolchain = mkOption {
       type = function;
       default = pkgs: pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
         extensions = [ "miri" "rust-src" ];
       });
-      description = "rust toolchain to use";
+      description = "rust toolchain to use for miri";
     };
   };
 
@@ -238,68 +238,74 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         , crateName
         , pkgs
         , ...
-        }: {
-          test = craneLib.cargoTest {
+        }:
+        let
+          packageOpts = config.packageOpts pkgs;
+        in
+        {
+          test = craneLib.cargoTest ({
             src = filteredSrc;
             inherit cargoArtifacts;
             cargoExtraArgs = "--locked --all-targets --workspace";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
-          clippy = craneLib.cargoClippy {
+          } // packageOpts);
+          clippy = craneLib.cargoClippy ({
             src = filteredSrc;
             inherit cargoArtifacts;
             strictDeps = true;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} -- --deny warnings";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
-        } // (optionalAttrs hasMsrv {
-          msrv = craneLibMsrv.buildPackage {
-            src = filteredSrc;
-            pname = "${crateName}-msrv";
-            cargoArtifacts = cargoArtifactsMsrv;
-            strictDeps = true;
-            doCheck = false;
-            cargoBuildCommand = "cargo check";
-            cargoExtraArgs = "--release --locked --all-targets --all-features ${maybeWorkspace}";
-            installPhaseCommand = "mkdir $out";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
-        }) // (optionalAttrs hasFeatures {
-          test-all-features = craneLib.cargoTest {
+          } // packageOpts);
+        } // (optionalAttrs hasMsrv
+          {
+            msrv = craneLibMsrv.buildPackage
+              ({
+                src = filteredSrc;
+                pname = "${crateName}-msrv";
+                cargoArtifacts = cargoArtifactsMsrv;
+                strictDeps = true;
+                doCheck = false;
+                cargoBuildCommand = "cargo check";
+                cargoExtraArgs = "--release --locked --all-targets --all-features ${maybeWorkspace}";
+                installPhaseCommand = "mkdir $out";
+                inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
+              } // packageOpts);
+          }) // (optionalAttrs hasFeatures {
+          test-all-features = craneLib.cargoTest ({
             src = filteredSrc;
             pname = "${crateName}-all-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsAllFeatures;
             cargoExtraArgs = "--locked --all-targets --all-features ${maybeWorkspace}";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
-          clippy-all-features = craneLib.cargoClippy {
+          } // packageOpts);
+          clippy-all-features = craneLib.cargoClippy ({
             src = filteredSrc;
             pname = "${crateName}-all-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsAllFeatures;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --all-features -- --deny warnings";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
+          } // packageOpts);
         }) // (optionalAttrs hasDefaultFeatures {
-          test-no-default-features = craneLib.cargoTest {
+          test-no-default-features = craneLib.cargoTest ({
             src = filteredSrc;
             pname = "${crateName}-no-default-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsNoDefault;
             cargoExtraArgs = "--locked --all-targets --no-default-features ${maybeWorkspace}";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
-          clippy-no-default-features = craneLib.cargoClippy {
+          } // packageOpts);
+          clippy-no-default-features = craneLib.cargoClippy ({
             inherit src;
             pname = "${crateName}-no-default-features";
             strictDeps = true;
             cargoArtifacts = cargoArtifactsNoDefault;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --no-default-features -- --deny warnings";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
+          } // packageOpts);
         }) // (optionalAttrs hasExamples {
-          examples = craneLibMsrv.buildPackage {
+          examples = craneLibMsrv.buildPackage ({
             src = filteredSrc;
             pname = "${crateName}-examples";
             cargoArtifacts = if hasFeatures then cargoArtifactsAllFeatures else cargoArtifacts;
@@ -307,7 +313,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             doCheck = false;
             cargoExtraArgs = "--examples ${optionalString hasFeatures "--all-features"} ${maybeWorkspace}";
             inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
-          };
+          } // packageOpts);
         });
 
       apps = { cargo-miri, cargo-semver-checks, ... }: {
