@@ -6,10 +6,10 @@
 let
   inherit (builtins) elem readFile pathExists isAttrs attrNames match any;
   inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals;
-  inherit (lib.fileset) fileFilter toSource;
+  inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
 
-  filteredSrc = toSource { root = src; inherit (config) fileset; };
+  filteredSrc = toSource { root = src; fileset = unions (config.extraPaths ++ [config.fileset]); };
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
   tomlPackage = cargoToml.package or cargoToml.workspace.package;
   hasMsrv = tomlPackage ? rust-version;
@@ -60,6 +60,10 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       type = with types; listOf str;
       default = [ ];
     };
+    extraPaths = mkOption {
+      type = with types; listOf path;
+      default = [ ];
+    };
     fileset = mkOption {
       type = fileset;
       default = fileFilter
@@ -96,7 +100,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
     };
     packageOpts = mkOption {
       type = optFunctionTo types.attrs;
-      default = {};
+      default = { };
     };
     toolchain = mkOption {
       type = function;
