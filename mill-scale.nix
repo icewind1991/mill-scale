@@ -19,6 +19,7 @@ let
   msrv = assert assertMsg hasMsrv ''"rust-version" not set in Cargo.toml''; tomlPackage.rust-version;
   maybeWorkspace = optionalString hasWorkspace "--workspace";
   hasExamples = pathExists (src + /examples);
+  hasDefaultPackage = pathExists (src + /nix/package.nix);
 
   cargoLockDeps =
     if pathExists (src + /Cargo.lock) then
@@ -126,40 +127,36 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       withOverlays = [
         (import inputs.rust-overlay)
         (final: { inputs, rust-bin, writeShellApplication, stdenvNoCC, ... } @ prev: rec {
+
+          commonCraneArgs = {
+            src = filteredSrc;
+            strictDeps = true;
+            doCheck = false;
+            inherit ((buildDeps final)) buildInputs nativeBuildInputs;
+          };
+          allFeaturesCraneArgs = commonCraneArgs // {
+            cargoExtraArgs = "--locked --all-features ${maybeWorkspace}";
+            pname = "${crateName}-all-features";
+          };
+          noDefaultFeaturesCraneArgs = commonCraneArgs // {
+            cargoExtraArgs = "--locked --no-default-features ${maybeWorkspace}";
+            pname = "${crateName}-all-features";
+          };
+          msrvCraneArgs = commonCraneArgs // {
+            cargoExtraArgs = "--locked --all-features ${maybeWorkspace}";
+            pname = "${crateName}-msrv";
+          };
+
           crateName = (craneLib.crateNameFromCargoToml { inherit src; }).pname;
           craneLib = (inputs.crane.mkLib final).overrideToolchain (p: p.rustToolchain);
           craneLibForTargets = targets: (inputs.crane.mkLib final).overrideToolchain (p: p.rustToolchain.override { inherit targets; });
           craneLibMsrv = (inputs.crane.mkLib final).overrideToolchain (p: p.msrvRustToolchain);
-          cargoArtifacts = craneLib.buildDepsOnly
-            {
-              src = filteredSrc;
-              strictDeps = true;
-              inherit ((buildDeps final)) buildInputs nativeBuildInputs;
-            };
-          cargoArtifactsAllFeatures = craneLib.buildDepsOnly
-            {
-              src = filteredSrc;
-              strictDeps = true;
-              cargoExtraArgs = "--locked --all-features";
-              pname = "${crateName}-all-features";
-              inherit ((buildDeps final)) buildInputs nativeBuildInputs;
-            };
-          cargoArtifactsNoDefault = craneLib.buildDepsOnly
-            {
-              src = filteredSrc;
-              strictDeps = true;
-              cargoExtraArgs = "--locked --no-default-features";
-              pname = "${crateName}-no-default-features";
-              inherit ((buildDeps final)) buildInputs nativeBuildInputs;
-            };
-          cargoArtifactsMsrv = craneLibMsrv.buildDepsOnly
-            {
-              src = filteredSrc;
-              strictDeps = true;
-              cargoExtraArgs = "--locked --all-features";
-              pname = "${crateName}-msrv";
-              inherit ((buildDeps final)) buildInputs nativeBuildInputs;
-            };
+
+          cargoArtifacts = craneLib.buildDepsOnly commonCraneArgs;
+          cargoArtifactsAllFeatures = craneLib.buildDepsOnly allFeaturesCraneArgs;
+          cargoArtifactsNoDefault = craneLib.buildDepsOnly noDefaultFeaturesCraneArgs;
+          cargoArtifactsMsrv = craneLibMsrv.buildDepsOnly msrvCraneArgs;
+
           rustToolchain = config.toolchain prev;
           msrvRustToolchain = config.msrvToolchain prev;
           miriRustToolchain = config.miriToolchain prev;
@@ -189,33 +186,25 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
 
       pname = tomlPackage.name;
 
-      packages = {
-        default = { callPackage, craneLib, cargoArtifacts, defaultMeta, pkgs }: craneLib.buildPackage ({
-          src = filteredSrc;
+      packages = (optionalAttrs (!hasDefaultPackage) {
+        default = { craneLib, cargoArtifacts, defaultMeta, commonCraneArgs, pkgs }: craneLib.buildPackage (commonCraneArgs // {
           inherit cargoArtifacts;
-          doCheck = false;
-          strictDeps = true;
           meta = defaultMeta;
-          inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
         } // (config.packageOpts pkgs));
-      } // (genAttrs config.crossTargets (
-        target: { craneLibForTargets, cargoArtifacts, defaultMeta, callPackage, crateName, pkgs }:
+      }) // (genAttrs config.crossTargets (
+        target: { craneLibForTargets, cargoArtifacts, defaultMeta, callPackage, crateName, commonCraneArgs, pkgs }:
           let
             targetCraneLib = craneLibForTargets [ target ];
             crossArgs = callPackage ./crossArgs.nix { } target;
           in
           targetCraneLib.buildPackage
-            ({
-              src = filteredSrc;
-              doCheck = false;
-              strictDeps = true;
+            (commonCraneArgs // {
               meta = defaultMeta // {
                 targetPlatform = target;
                 binarySuffix = crossArgs.BINARY_SUFFIX or "";
               };
               pname = "${crateName}-${target}";
               cargoExtraArgs = "--target ${target}";
-              inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
             } // crossArgs // (config.packageOpts pkgs))
       ));
 
@@ -236,6 +225,10 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         , cargoArtifactsAllFeatures
         , cargoArtifactsNoDefault
         , crateName
+        , commonCraneArgs
+        , allFeaturesCraneArgs
+        , noDefaultFeaturesCraneArgs
+        , msrvCraneArgs
         , pkgs
         , ...
         }:
@@ -243,76 +236,47 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           packageOpts = config.packageOpts pkgs;
         in
         {
-          test = craneLib.cargoTest ({
-            src = filteredSrc;
+          test = craneLib.cargoTest (commonCraneArgs // {
             inherit cargoArtifacts;
-            cargoExtraArgs = "--locked --all-targets --workspace";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
+            doCheck = true;
+            cargoExtraArgs = "--locked --all-targets ${maybeWorkspace}";
           } // packageOpts);
-          clippy = craneLib.cargoClippy ({
-            src = filteredSrc;
+          clippy = craneLib.cargoClippy (commonCraneArgs // {
             inherit cargoArtifacts;
-            strictDeps = true;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} -- --deny warnings";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
           } // packageOpts);
         } // (optionalAttrs hasMsrv
           {
             msrv = craneLibMsrv.buildPackage
-              ({
-                src = filteredSrc;
+              (msrvCraneArgs // {
                 pname = "${crateName}-msrv";
                 cargoArtifacts = cargoArtifactsMsrv;
-                strictDeps = true;
-                doCheck = false;
                 cargoBuildCommand = "cargo check";
                 cargoExtraArgs = "--release --locked --all-targets --all-features ${maybeWorkspace}";
                 installPhaseCommand = "mkdir $out";
-                inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
               } // packageOpts);
           }) // (optionalAttrs hasFeatures {
-          test-all-features = craneLib.cargoTest ({
-            src = filteredSrc;
-            pname = "${crateName}-all-features";
-            strictDeps = true;
+          test-all-features = craneLib.cargoTest (allFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsAllFeatures;
-            cargoExtraArgs = "--locked --all-targets --all-features ${maybeWorkspace}";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
+            doCheck = true;
           } // packageOpts);
-          clippy-all-features = craneLib.cargoClippy ({
-            src = filteredSrc;
-            pname = "${crateName}-all-features";
-            strictDeps = true;
+          clippy-all-features = craneLib.cargoClippy (allFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsAllFeatures;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --all-features -- --deny warnings";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
           } // packageOpts);
         }) // (optionalAttrs hasDefaultFeatures {
-          test-no-default-features = craneLib.cargoTest ({
-            src = filteredSrc;
-            pname = "${crateName}-no-default-features";
-            strictDeps = true;
+          test-no-default-features = craneLib.cargoTest (noDefaultFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsNoDefault;
-            cargoExtraArgs = "--locked --all-targets --no-default-features ${maybeWorkspace}";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
+            doCheck = true;
           } // packageOpts);
-          clippy-no-default-features = craneLib.cargoClippy ({
-            inherit src;
-            pname = "${crateName}-no-default-features";
-            strictDeps = true;
+          clippy-no-default-features = craneLib.cargoClippy (noDefaultFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsNoDefault;
             cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --no-default-features -- --deny warnings";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
           } // packageOpts);
         }) // (optionalAttrs hasExamples {
-          examples = craneLibMsrv.buildPackage ({
-            src = filteredSrc;
+          examples = craneLibMsrv.buildPackage (commonCraneArgs // {
             pname = "${crateName}-examples";
-            cargoArtifacts = if hasFeatures then cargoArtifactsAllFeatures else cargoArtifacts;
-            strictDeps = true;
-            doCheck = false;
             cargoExtraArgs = "--examples ${optionalString hasFeatures "--all-features"} ${maybeWorkspace}";
-            inherit ((buildDeps pkgs)) buildInputs nativeBuildInputs;
           } // packageOpts);
         });
 
