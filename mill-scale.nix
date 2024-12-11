@@ -5,7 +5,7 @@
 { lib, src, config, flakelight, inputs, ... }:
 let
   inherit (builtins) elem readFile pathExists isAttrs attrNames match any;
-  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals;
+  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals remove;
   inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
 
@@ -15,6 +15,10 @@ let
   hasMsrv = tomlPackage ? rust-version;
   hasWorkspace = tomlPackage ? workspace;
   hasFeatures = cargoToml ? features && isAttrs cargoToml.features;
+  features = cargoToml.features or {};
+  defaultFeatures = features.default or [];
+  nonDefaultFeatures = remove "default" (attrNames features);
+  hasNonDefaultFeatures = hasFeatures && (defaultFeatures != nonDefaultFeatures);
   hasDefaultFeatures = cargoToml ? features && cargoToml.features ? default;
   msrv = assert assertMsg hasMsrv ''"rust-version" not set in Cargo.toml''; tomlPackage.rust-version;
   maybeWorkspace = optionalString hasWorkspace "--workspace";
@@ -255,7 +259,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
                 cargoExtraArgs = "--release --locked --all-targets --all-features ${maybeWorkspace}";
                 installPhaseCommand = "mkdir $out";
               } // packageOpts);
-          }) // (optionalAttrs hasFeatures {
+          }) // (optionalAttrs hasNonDefaultFeatures {
           test-all-features = craneLib.cargoTest (allFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsAllFeatures;
             doCheck = true;
@@ -276,7 +280,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
         }) // (optionalAttrs hasExamples {
           examples = craneLibMsrv.buildPackage (commonCraneArgs // {
             pname = "${crateName}-examples";
-            cargoExtraArgs = "--examples ${optionalString hasFeatures "--all-features"} ${maybeWorkspace}";
+            cargoExtraArgs = "--examples ${optionalString hasNonDefaultFeatures "--all-features"} ${maybeWorkspace}";
           } // packageOpts);
         });
 
