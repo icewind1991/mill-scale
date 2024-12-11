@@ -5,22 +5,16 @@
 { lib, src, config, flakelight, inputs, ... }:
 let
   inherit (builtins) elem readFile pathExists isAttrs attrNames match any;
-  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals remove;
+  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals;
   inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
 
   filteredSrc = toSource { root = src; fileset = unions (config.extraPaths ++ [ config.fileset ]); };
+
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
-  tomlPackage = cargoToml.package or cargoToml.workspace.package;
-  hasMsrv = tomlPackage ? rust-version;
-  hasWorkspace = tomlPackage ? workspace;
-  hasFeatures = cargoToml ? features && isAttrs cargoToml.features;
-  features = cargoToml.features or {};
-  defaultFeatures = features.default or [];
-  nonDefaultFeatures = remove "default" (attrNames features);
-  hasNonDefaultFeatures = hasFeatures && (defaultFeatures != nonDefaultFeatures);
-  hasDefaultFeatures = cargoToml ? features && cargoToml.features ? default;
-  msrv = assert assertMsg hasMsrv ''"rust-version" not set in Cargo.toml''; tomlPackage.rust-version;
+  cargoMeta = (import ./cargo-meta.nix { inherit lib; }) cargoToml;
+  inherit (cargoMeta) tomlPackage hasMsrv hasWorkspace hasFeatures hasNonDefaultFeatures hasDefaultFeatures msrv;
+
   maybeWorkspace = optionalString hasWorkspace "--workspace";
   hasExamples = pathExists (src + /examples);
   hasDefaultPackage = pathExists (src + /nix/package.nix);
