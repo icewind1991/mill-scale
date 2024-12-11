@@ -243,7 +243,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           } // packageOpts);
           clippy = craneLib.cargoClippy (commonCraneArgs // {
             inherit cargoArtifacts;
-            cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} -- --deny warnings";
+            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
           } // packageOpts);
         } // (optionalAttrs hasMsrv
           {
@@ -262,7 +262,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           } // packageOpts);
           clippy-all-features = craneLib.cargoClippy (allFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsAllFeatures;
-            cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --all-features -- --deny warnings";
+            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
           } // packageOpts);
         }) // (optionalAttrs hasDefaultFeatures {
           test-no-default-features = craneLib.cargoTest (noDefaultFeaturesCraneArgs // {
@@ -271,7 +271,7 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
           } // packageOpts);
           clippy-no-default-features = craneLib.cargoClippy (noDefaultFeaturesCraneArgs // {
             cargoArtifacts = cargoArtifactsNoDefault;
-            cargoClippyExtraArgs = "--all-targets ${maybeWorkspace} --no-default-features -- --deny warnings";
+            cargoClippyExtraArgs = "--all-targets -- --deny warnings";
           } // packageOpts);
         }) // (optionalAttrs hasExamples {
           examples = craneLibMsrv.buildPackage (commonCraneArgs // {
