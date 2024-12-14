@@ -50,6 +50,8 @@ Additionally, dependencies for the following crates should be automatically dete
 
 - openssl
 - udev
+- dbus
+- servo-fontconfig
 
 ## Usage with GitHub Actions
 
