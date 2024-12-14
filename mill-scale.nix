@@ -4,8 +4,8 @@
 
 { lib, src, config, flakelight, inputs, ... }:
 let
-  inherit (builtins) elem readFile pathExists isAttrs attrNames match any;
-  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists foldl attrVals;
+  inherit (builtins) elem readFile pathExists isAttrs match any;
+  inherit (lib) map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists attrVals;
   inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
 
@@ -19,33 +19,11 @@ let
   hasExamples = pathExists (src + /examples);
   hasDefaultPackage = pathExists (src + /nix/package.nix);
 
-  cargoLockDeps =
-    if pathExists (src + /Cargo.lock) then
-      let
-        cargoLock = fromTOML (readFile (src + /Cargo.lock));
-      in
-      map (package: package.name) cargoLock.package
-    else [ ];
-  availableAutoDeps = import ./autodeps.nix;
-  detectedDeps = intersectLists cargoLockDeps (attrNames availableAutoDeps);
-  mergedDetectedDeps =
-    if config.autodeps then
-      foldl
-        (merged: dep: {
-          build = merged.build ++ (availableAutoDeps.${dep}.build or [ ]);
-          native = merged.native ++ (availableAutoDeps.${dep}.native or [ ]);
-        })
-        {
-          build = [ ];
-          native = [ ];
-        }
-        detectedDeps else {
-      build = [ ];
-      native = [ ];
-    };
+  autoDeps = (import ./autodeps { inherit lib src config; });
   buildDeps = pkgs: {
-    buildInputs = (attrVals mergedDetectedDeps.build pkgs) ++ (config.buildInputs pkgs);
-    nativeBuildInputs = with pkgs; [ pkg-config ] ++ (attrVals mergedDetectedDeps.native pkgs) ++ (config.nativeBuildInputs pkgs);
+    buildInputs = (autoDeps pkgs).buildInputs ++ (config.buildInputs pkgs);
+    nativeBuildInputs = (autoDeps pkgs).nativeBuildInputs ++ (config.nativeBuildInputs pkgs);
+    env = (autoDeps pkgs).env // (config.buildEnv pkgs);
   };
 in
 warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
@@ -86,6 +64,11 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       type = function;
       default = pkgs: [ ];
       description = "native build inputs for the package";
+    };
+    buildEnv = mkOption {
+      type = function;
+      default = pkgs: { };
+      description = "build environent variables for the package";
     };
     tools = mkOption {
       type = function;
@@ -292,9 +275,9 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
             ++ (buildDeps pkgs).buildInputs
             ++ (buildDeps pkgs).nativeBuildInputs;
 
-          env = { rustPlatform, ... }: {
+          env = { rustPlatform, pkgs, ... }: {
             RUST_SRC_PATH = toString rustPlatform.rustLibSrc;
-          };
+          } // (buildDeps pkgs).env;
         };
         miri = {
           packages = pkgs: with pkgs; [ miriRustToolchain ]
