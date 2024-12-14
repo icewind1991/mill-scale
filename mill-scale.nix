@@ -20,10 +20,13 @@ let
   hasDefaultPackage = pathExists (src + /nix/package.nix);
 
   autoDeps = (import ./autodeps { inherit lib src config; });
-  buildDeps = pkgs: {
+  buildDeps = pkgs: rec {
     buildInputs = (autoDeps pkgs).buildInputs ++ (config.buildInputs pkgs);
     nativeBuildInputs = (autoDeps pkgs).nativeBuildInputs ++ (config.nativeBuildInputs pkgs);
-    env = (autoDeps pkgs).env // (config.buildEnv pkgs);
+    runtimeInputs = (autoDeps pkgs).runtimeInputs ++ (config.runtimeInputs pkgs);
+    env = (autoDeps pkgs).env // (config.buildEnv pkgs) // {
+      LD_LIBRARY_PATH = "/run/opengl-driver/lib/:${lib.makeLibraryPath (runtimeInputs)}";
+    };
   };
 in
 warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
@@ -69,6 +72,11 @@ warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
       type = function;
       default = pkgs: { };
       description = "build environent variables for the package";
+    };
+    runtimeInputs = mkOption {
+      type = function;
+      default = pkgs: [ ];
+      description = "runtime inputs for the package";
     };
     tools = mkOption {
       type = function;

@@ -18,6 +18,7 @@ let
         (merged: dep: {
           build = merged.build ++ (availableAutoDeps.${dep}.build or [ ]);
           native = merged.native ++ (availableAutoDeps.${dep}.native or [ ]);
+          runtime = merged.runtime ++ (availableAutoDeps.${dep}.runtime or [ ]);
           env =
             if (hasAttr "env" availableAutoDeps.${dep}) then
               pkgs: (merged.env pkgs) // (availableAutoDeps.${dep}.env pkgs)
@@ -26,11 +27,13 @@ let
         {
           build = [ ];
           native = [ ];
+          runtime = [ ];
           env = pkgs: { };
         }
         detectedDeps else {
       build = [ ];
       native = [ ];
+      runtime = [ ];
       env = pkgs: { };
     };
   getPkgs = pkgs: deps:
@@ -41,6 +44,7 @@ let
   autoDeps = pkgs: {
     buildInputs = getPkgs pkgs mergedDetectedDeps.build;
     nativeBuildInputs = with pkgs; [ pkg-config ] ++ (getPkgs pkgs mergedDetectedDeps.native);
+    runtimeInputs = getPkgs pkgs mergedDetectedDeps.runtime;
     env = mergedDetectedDeps.env pkgs;
   };
 in

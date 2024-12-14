@@ -5,11 +5,7 @@
   "expat-sys" = { native = [ "cmake" ]; };
   "servo-fontconfig-sys" = { build = [ "fontconfig" ]; };
   "x11-dl" = { build = [ "xorg.libX11" "xorg.libXcursor" "xorg.libXrandr" "xorg.libXi" ]; };
-  "glutin_glx_sys" = {
-    build = [ "libGL" ];
-    env = pkgs: {
-      LD_LIBRARY_PATH = with pkgs; "/run/opengl-driver/lib/:${lib.makeLibraryPath ([libGL libGLU])}";
-    };
-  };
+  "glutin_glx_sys" = { runtime = [ "libGL" "libGLU" ]; };
   "wayland-egl" = { build = [ "egl-wayland" ]; };
+  "wayland-sys" = { runtime = [ "wayland" "libxkbcommon" ]; };
 }
