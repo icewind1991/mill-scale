@@ -52,6 +52,7 @@ Additionally, dependencies for the following crates should be automatically dete
 - udev
 - dbus
 - servo-fontconfig
+- sodium
 
 ## Usage with GitHub Actions
 

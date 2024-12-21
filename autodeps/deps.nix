@@ -8,4 +8,5 @@
   "glutin_glx_sys" = { runtime = [ "libGL" "libGLU" ]; };
   "wayland-egl" = { build = [ "egl-wayland" ]; };
   "wayland-sys" = { runtime = [ "wayland" "libxkbcommon" ]; };
+  "libsodium-sys" = { build = [ "libsodium" ]; };
 }
