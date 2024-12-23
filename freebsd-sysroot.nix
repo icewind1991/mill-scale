@@ -1,9 +1,9 @@
-{ stdenv
-, fetchzip
-, arch
-, version
-, sha256
-,
+{
+  stdenv,
+  fetchzip,
+  arch,
+  version,
+  sha256,
 }:
 stdenv.mkDerivation {
   pname = "freebsd-sysroot";

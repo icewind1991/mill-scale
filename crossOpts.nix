@@ -1,12 +1,15 @@
-{ pkgsCross, perl, callPackage, freebsdCross }:
-let
+{
+  pkgsCross,
+  perl,
+  callPackage,
+  freebsdCross,
+}: let
   freebsdSysrootX86 = callPackage ./freebsd-sysroot.nix {
     arch = "amd64";
     sha256 = "sha256-/XZXt0bPI9bTXrD+TR2KYzhE7wKpVAvKndWL3tqe5cg=";
     version = freebsdCross.versionData.revision;
   };
-in
-{
+in {
   "armv7-unknown-linux-musleabihf" = {
     targetStdenv = pkgsCross.muslpi.stdenv;
   };
@@ -29,14 +32,14 @@ in
   "x86_64-pc-windows-gnu" = {
     targetStdenv = pkgsCross.mingwW64.stdenv;
     # rink wants perl for windows targets
-    buildInputs = [ perl ];
-    targetDeps = [ pkgsCross.mingwW64.windows.pthreads ];
+    buildInputs = [perl];
+    targetDeps = [pkgsCross.mingwW64.windows.pthreads];
     rustFlags = "-C target-feature=+crt-static";
     BINARY_SUFFIX = ".exe";
   };
   "x86_64-unknown-freebsd" = {
     targetStdenv = pkgsCross.x86_64-freebsd.stdenv;
-    targetDeps = [ freebsdSysrootX86 ];
+    targetDeps = [freebsdSysrootX86];
     dontPatchELF = true;
     postInstall = ''
       patchelf --set-interpreter /libexec/ld-elf.so.1 $out/bin/*
