@@ -4,7 +4,7 @@
   stdenv,
   lib,
 }: let
-  inherit (lib) mapAttrs hasInfix replaceStrings toUpper concatStrings recursiveUpdate;
+  inherit (lib) hasInfix replaceStrings toUpper concatStrings;
   isMusl = hasInfix "-musl";
   crossOpts = callPackage ./crossOpts.nix {};
 

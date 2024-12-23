@@ -9,8 +9,8 @@
   inputs,
   ...
 }: let
-  inherit (builtins) elem readFile pathExists isAttrs match any;
-  inherit (lib) getExe map mkDefault mkIf mkMerge mkOption warnIf assertMsg optionalAttrs types optionalString genAttrs hasInfix intersectLists attrVals;
+  inherit (builtins) elem readFile pathExists match any;
+  inherit (lib) getExe map mkDefault mkIf mkMerge mkOption warnIf optionalAttrs types optionalString genAttrs hasInfix;
   inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
 
@@ -21,7 +21,7 @@
 
   cargoToml = fromTOML (readFile (src + /Cargo.toml));
   cargoMeta = (import ./cargo-meta.nix {inherit lib;}) cargoToml;
-  inherit (cargoMeta) tomlPackage hasMsrv hasWorkspace hasFeatures hasNonDefaultFeatures hasDefaultFeatures msrv;
+  inherit (cargoMeta) tomlPackage hasMsrv hasWorkspace hasNonDefaultFeatures hasDefaultFeatures msrv;
 
   maybeWorkspace = optionalString hasWorkspace "--workspace";
   hasExamples = pathExists (src + /examples);
