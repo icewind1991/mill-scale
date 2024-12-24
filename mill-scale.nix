@@ -123,6 +123,11 @@ in
             });
         description = "rust toolchain to use for miri";
       };
+      cargoTest = mkOption {
+        type = types.bool;
+        default = true;
+        description = "create a check for `cargo test`";
+      };
     };
 
     config = mkMerge [
@@ -273,13 +278,6 @@ in
           packageOpts = config.packageOpts pkgs;
         in
           {
-            test = craneLib.cargoTest (commonCraneArgs
-              // {
-                inherit cargoArtifacts;
-                doCheck = true;
-                cargoExtraArgs = "--locked --all-targets ${maybeWorkspace}";
-              }
-              // packageOpts);
             clippy = craneLib.cargoClippy (commonCraneArgs
               // {
                 inherit cargoArtifacts;
@@ -287,6 +285,15 @@ in
               }
               // packageOpts);
           }
+          // (optionalAttrs config.cargoTest {
+            test = craneLib.cargoTest (commonCraneArgs
+              // {
+                inherit cargoArtifacts;
+                doCheck = true;
+                cargoExtraArgs = "--locked --all-targets ${maybeWorkspace}";
+              }
+              // packageOpts);
+          })
           // (optionalAttrs hasMsrv
             {
               msrv =
@@ -301,13 +308,15 @@ in
                   }
                   // packageOpts);
             })
-          // (optionalAttrs hasNonDefaultFeatures {
+          // (optionalAttrs (hasNonDefaultFeatures && config.cargoTest) {
             test-all-features = craneLib.cargoTest (allFeaturesCraneArgs
               // {
                 cargoArtifacts = cargoArtifactsAllFeatures;
                 doCheck = true;
               }
               // packageOpts);
+          })
+          // (optionalAttrs hasNonDefaultFeatures {
             clippy-all-features = craneLib.cargoClippy (allFeaturesCraneArgs
               // {
                 cargoArtifacts = cargoArtifactsAllFeatures;
@@ -315,13 +324,15 @@ in
               }
               // packageOpts);
           })
-          // (optionalAttrs hasDefaultFeatures {
+          // (optionalAttrs (hasDefaultFeatures && config.cargoTest) {
             test-no-default-features = craneLib.cargoTest (noDefaultFeaturesCraneArgs
               // {
                 cargoArtifacts = cargoArtifactsNoDefault;
                 doCheck = true;
               }
               // packageOpts);
+          })
+          // (optionalAttrs hasDefaultFeatures {
             clippy-no-default-features = craneLib.cargoClippy (noDefaultFeaturesCraneArgs
               // {
                 cargoArtifacts = cargoArtifactsNoDefault;
