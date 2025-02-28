@@ -13,4 +13,6 @@ in
     hasNonDefaultFeatures = hasFeatures && (defaultFeatures != nonDefaultFeatures);
     hasDefaultFeatures = cargoToml ? features && cargoToml.features ? default;
     msrv = assert assertMsg hasMsrv ''"rust-version" not set in Cargo.toml''; tomlPackage.rust-version;
+    dependencies = attrNames (cargoToml.dependencies or {});
+    dev-dependencies = attrNames (cargoToml.dev-dependencies or {});
   }
