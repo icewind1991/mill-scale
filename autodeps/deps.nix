@@ -1,5 +1,8 @@
 {
-  "openssl-sys" = {build = ["openssl"];};
+  "openssl-sys" = {
+    build = ["openssl"];
+    env = pkgs: {OPENSSL_NO_VENDOR = "1";};
+  };
   "libudev-sys" = {build = ["eudev"];};
   "libdbus-sys" = {build = ["dbus"];};
   "expat-sys" = {native = ["cmake"];};
