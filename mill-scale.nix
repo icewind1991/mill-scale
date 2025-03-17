@@ -9,7 +9,7 @@
   inputs,
   ...
 }: let
-  inherit (builtins) elem readFile pathExists match any;
+  inherit (builtins) elem readFile pathExists match any concatLists;
   inherit (lib) getExe map mkDefault mkIf mkMerge mkOption warnIf optionalAttrs types optionalString genAttrs hasInfix optionals;
   inherit (lib.fileset) fileFilter toSource unions;
   inherit (flakelight.types) fileset function optFunctionTo;
@@ -39,7 +39,12 @@
         LD_LIBRARY_PATH = "/run/opengl-driver/lib/:${lib.makeLibraryPath runtimeInputs}";
       };
   };
-  autoTools = pkgs: optionals (elem "insta" cargoMeta.dev-dependencies) [pkgs.cargo-insta];
+  autoTools = let
+    definitions = import ./autotools.nix;
+    perDependency = map (dep: definitions.${dep} or []) (cargoMeta.dependencies ++ cargoMeta.dev-dependencies);
+    all = concatLists perDependency;
+  in
+    pkgs: map (pkgName: pkgs.${pkgName}) all;
 in
   warnIf (! builtins ? readFileType) "Unsupported Nix version in use."
   {
