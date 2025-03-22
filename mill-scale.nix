@@ -147,12 +147,14 @@ in
               stdenvNoCC,
               ...
             } @ prev: rec {
-              commonCraneArgs = {
-                src = filteredSrc;
-                strictDeps = true;
-                doCheck = false;
-                inherit ((buildDeps final)) buildInputs nativeBuildInputs;
-              };
+              commonCraneArgs =
+                {
+                  src = filteredSrc;
+                  strictDeps = true;
+                  doCheck = false;
+                  inherit ((buildDeps final)) buildInputs nativeBuildInputs;
+                }
+                // (buildDeps final).env;
               allFeaturesCraneArgs =
                 commonCraneArgs
                 // {
@@ -225,7 +227,8 @@ in
                   inherit cargoArtifacts;
                   meta = defaultMeta;
                 }
-                // (config.packageOpts pkgs));
+                // (config.packageOpts pkgs)
+                // (buildDeps pkgs).env);
           })
           // (genAttrs config.crossTargets (
             target: {
@@ -254,6 +257,7 @@ in
                 }
                 // crossArgs
                 // (config.packageOpts pkgs))
+              // (buildDeps pkgs).env
           ));
 
         outputs = {
@@ -281,7 +285,7 @@ in
           pkgs,
           ...
         }: let
-          packageOpts = config.packageOpts pkgs;
+          packageOpts = config.packageOpts pkgs // (buildDeps pkgs).env;
         in
           {
             clippy = craneLib.cargoClippy (commonCraneArgs
