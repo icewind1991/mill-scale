@@ -39,6 +39,12 @@
         LD_LIBRARY_PATH = "/run/opengl-driver/lib/:${lib.makeLibraryPath runtimeInputs}";
       };
   };
+
+  defaultToolchain = pkgs:
+    if pathExists (src + "/rust-toolchain.toml")
+    then pkgs.rust-bin.fromRustupToolchainFile (src + "/rust-toolchain.toml")
+    else pkgs.rust-bin.stable.latest.default;
+
   autoTools = let
     definitions = import ./autotools.nix;
     perDependency = map (dep: definitions.${dep} or []) (cargoMeta.dependencies ++ cargoMeta.dev-dependencies);
@@ -112,7 +118,7 @@ in
       };
       toolchain = mkOption {
         type = function;
-        default = pkgs: pkgs.rust-bin.stable.latest.default;
+        default = defaultToolchain;
         description = "rust toolchain to use";
       };
       msrvToolchain = mkOption {
