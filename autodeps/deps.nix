@@ -13,4 +13,5 @@
   "wayland-sys" = {runtime = ["wayland" "libxkbcommon"];};
   "libsodium-sys" = {build = ["libsodium"];};
   "freetype-sys" = {build = ["freetype"];};
+  "alsa-sys" = {build = ["alsa-lib"];};
 }
