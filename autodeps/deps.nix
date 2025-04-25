@@ -12,4 +12,5 @@
   "wayland-egl" = {build = ["egl-wayland"];};
   "wayland-sys" = {runtime = ["wayland" "libxkbcommon"];};
   "libsodium-sys" = {build = ["libsodium"];};
+  "freetype-sys" = {build = ["freetype"];};
 }

@@ -57,6 +57,7 @@ Additionally, dependencies for the following crates should be automatically dete
 - glutin_glx
 - wayland
 - libsodium
+- freetype
 
 ## Development tooling
 
