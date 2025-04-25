@@ -46,7 +46,7 @@
   in
     map (path: getAttrFromPath path pkgs) depPaths;
   autoDeps = pkgs: {
-    buildInputs = getPkgs pkgs mergedDetectedDeps.build;
+    buildInputs = getPkgs pkgs (lib.traceValSeq mergedDetectedDeps.build);
     nativeBuildInputs = with pkgs; [pkg-config] ++ (getPkgs pkgs mergedDetectedDeps.native);
     runtimeInputs = getPkgs pkgs mergedDetectedDeps.runtime;
     env = mergedDetectedDeps.env pkgs;

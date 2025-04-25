@@ -59,6 +59,7 @@ Additionally, dependencies for the following crates should be automatically dete
 - libsodium
 - freetype
 - alsa
+- wgpu
 
 ## Development tooling
 
