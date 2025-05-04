@@ -63,7 +63,7 @@ Additionally, dependencies for the following crates should be automatically dete
 
 ## Development tooling
 
-Development tools for working with the following crates are automatically added to the dev-shell
+Development tools for working with the following crates are automatically added to the dev-shell when needed
 
 - cargo-insta
 - sqlx

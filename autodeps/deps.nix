@@ -15,4 +15,5 @@
   "freetype-sys" = {build = ["freetype"];};
   "alsa-sys" = {build = ["alsa-lib"];};
   "wgpu" = {runtime = ["vulkan-loader"];};
+  "audiopus_sys" = {build = ["libopus"];};
 }
