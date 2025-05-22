@@ -1,3 +1,5 @@
+# Moved to https://codeberg.org/icewind/mill-scale
+
 # Mill Scale
 
 An opinionated rust module for [flakelight](https://github.com/nix-community/flakelight).
